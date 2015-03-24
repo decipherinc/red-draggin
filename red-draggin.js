@@ -1,5 +1,5 @@
 /**
- * red-draggin v1.2.0
+ * red-draggin v2.0.0
  *
  * Copyright (c) 2014 Marcel Juenemann mail@marcel-junemann.de
  * https://github.com/decipherinc/red-draggin
@@ -9,7 +9,7 @@
 (function (angular) {
   'use strict';
 
-  angular.module('dndLists', [])
+  angular.module('fv.red-draggin', [])
 
   /**
    * Use the dnd-draggable attribute to make your element draggable
@@ -63,7 +63,7 @@
    *                      it's source position, and not the 'element' that the user is dragging with
    *                      his mouse pointer.
    */
-      .directive('dndDraggable',
+      .directive('draggable',
       ['$parse', '$timeout', 'dndDropEffectWorkaround', 'dndDragTypeWorkaround',
         '$cacheFactory',
         function ($parse, $timeout, dndDropEffectWorkaround,
@@ -102,7 +102,7 @@
               event = event.originalEvent || event;
 
               event.dataTransfer.setData('Text', id);
-              cache.put(id, scope.$eval(attr.dndDraggable));
+              cache.put(id, scope.$eval(attr.draggable));
 
               // Only allow actions specified in dnd-effect-allowed attribute
               event.dataTransfer.effectAllowed =
@@ -243,7 +243,7 @@
    *                        dndPlaceholder set.
    * - dndDragover          Will be added to the list while an element is dragged over the list.
    */
-      .directive('dndList',
+      .directive('droppable',
       ['$parse', '$timeout', 'dndDropEffectWorkaround', 'dndDragTypeWorkaround',
         '$cacheFactory',
         function ($parse, $timeout, dndDropEffectWorkaround,
