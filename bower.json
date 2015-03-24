@@ -1,12 +1,13 @@
 {
-  "name": "angular-drag-and-drop-lists",
-  "main": "angular-drag-and-drop-lists.js",
+  "name": "red-draggin",
+  "main": "red-draggin.js",
   "version": "1.2.0",
-  "homepage": "https://github.com/marceljuenemann/angular-drag-and-drop-lists",
+  "homepage": "https://github.com/decipherinc/red-draggin",
   "authors": [
+    "Christopher Hiller <chiller@decipherinc.com>",
     "Marcel Juenemann <mail@marcel-juenemann.de>"
   ],
-  "description": "Angular directives for sorting nested lists using the HTML5 Drag & Drop API",
+  "description": "Angular directives for sorting nested lists",
   "keywords": [
     "angular",
     "drag",
@@ -26,5 +27,9 @@
     "*.json",
     "test",
     "tests"
-  ]
+  ],
+  "dependencies": {
+    "angular-types": "*",
+    "angular": "*"
+  }
 }

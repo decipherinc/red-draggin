@@ -31,7 +31,7 @@ angular.module("demo", ["ngRoute", "dndLists"])
                     {label: "Simple Demo", href: "#/simple"},
                     {label: "Item Types", href: "#/types"},
                     {label: "Advanced Demo", href: "#/advanced"},
-                    {label: "Github", href: "https://github.com/marceljuenemann/angular-drag-and-drop-lists"}
+                    {label: "Github", href: "https://github.com/marceljuenemann/red-draggin"}
                 ];
 
                 scope.isActive = function(option) {
