@@ -63,41 +63,27 @@
    *                      it's source position, and not the 'element' that the user is dragging with
    *                      his mouse pointer.
    */
-      .directive('draggable',
-      ['$parse', '$timeout', 'dndDropEffectWorkaround', 'dndDragTypeWorkaround',
-        '$cacheFactory',
-        function ($parse, $timeout, dndDropEffectWorkaround,
-            dndDragTypeWorkaround, $cacheFactory) {
+    .directive('draggable',
+    ['$parse', '$timeout', 'dndDropEffectWorkaround', 'dndDragTypeWorkaround',
+      '$cacheFactory',
+      function ($parse, $timeout, dndDropEffectWorkaround,
+        dndDragTypeWorkaround, $cacheFactory) {
 
-          var cache, nextBufferId;
+        var cache, nextBufferId;
 
-          if (!angular.clone) {
-            throw new Error('angular-types is required!');
-          }
+        if (!angular.clone) {
+          throw new Error('angular-types is required!');
+        }
 
-          // cache to manage data getting dragged and dropped
-          cache = $cacheFactory.get('dndLists') || $cacheFactory('dndLists');
-          nextBufferId = 0;
+        // cache to manage data getting dragged and dropped
+        cache = $cacheFactory.get('droppables') || $cacheFactory('droppables');
+        nextBufferId = 0;
 
-          return function (scope, element, attr) {
-            // data buffer id
-            var id;
+        return function (scope, element, attr) {
+          // data buffer id
+          var id,
 
-            // Set the HTML5 draggable attribute on the element
-            element.attr('draggable', 'true');
-
-            // If the dnd-disable-if attribute is set, we have to watch that
-            if (attr.dndDisableIf) {
-              scope.$watch(attr.dndDisableIf, function (disabled) {
-                element.attr('draggable', !disabled);
-              });
-            }
-
-            /**
-             * When the drag operation is started we have to prepare the dataTransfer object,
-             * which is the primary way we communicate with the target element
-             */
-            element.on('dragstart', function (event) {
+            onDragStart = function onDragStart(event) {
               id = (nextBufferId++).toString();
               event = event.originalEvent || event;
 
@@ -106,7 +92,7 @@
 
               // Only allow actions specified in dnd-effect-allowed attribute
               event.dataTransfer.effectAllowed =
-                  attr.dndEffectAllowed || 'move';
+                attr.effectAllowed || 'move';
 
               // Add CSS classes. See documentation above
               element.addClass('dndDragging');
@@ -120,22 +106,15 @@
 
               // Save type of item in global state. Usually, this would go into the dataTransfer
               // typename, but we have to use 'Text' there to support IE
-              dndDragTypeWorkaround.dragType =
-                  attr.dndType ? scope.$eval(attr.dndType) : undefined;
+              dndDragTypeWorkaround.dragType = scope.$eval(attr.type);
 
               // Invoke callback
-              $parse(attr.dndDragstart)(scope,
-                  {event: event, item: cache.get(id)});
+              $parse(attr.onDragStart)(scope,
+                {event: event, item: cache.get(id)});
 
               event.stopPropagation();
-            });
-
-            /**
-             * The dragend event is triggered when the element was dropped or when the drag
-             * operation was aborted (e.g. hit escape button). Depending on the executed action
-             * we will invoke the callbacks specified with the dnd-moved or dnd-copied attribute.
-             */
-            element.on('dragend', function (event) {
+            },
+            onDragEnd = function onDragEnd(event) {
               var dropEffect;
               event = event.originalEvent || event;
 
@@ -144,57 +123,85 @@
               // it always sets it to 'none', while Chrome on Linux sometimes sets it to something
               // else when it's supposed to send 'none' (drag operation aborted).
               dropEffect = dndDropEffectWorkaround.dropEffect;
-              scope.$apply(function () {
-                switch (dropEffect) {
-                  case 'copy':
-                    $parse(attr.dndCopied)(scope,
-                        {event: event, item: cache.get(id)});
-                    break;
-                  case 'move':
-                  default:
-                    $parse(attr.dndMoved)(scope,
-                        {event: event, item: cache.get(id)});
-                }
-              });
 
-              // Clean up
-              element.removeClass('dndDragging');
-              element.removeClass('dndDraggingSource');
-              dndDragTypeWorkaround.isDragging = false;
-              event.stopPropagation();
-
-              // remove the data from the cache, but not before the drop occurs.
+              // TODO call callbacks with context of element scope
               $timeout(function () {
-                cache.remove(id);
-              });
-            });
+                scope.$apply(function () {
+                  switch (dropEffect) {
+                    case 'copy':
+                      $parse(attr.onCopied)(scope,
+                        {event: event, item: cache.get(id)});
+                      break;
+                    case 'move':
+                    default:
+                      $parse(attr.onMoved)(scope,
+                        {event: event, item: cache.get(id)});
+                  }
+                });
 
-            /**
-             * When the element is clicked we invoke the callback function
-             * specified with the dnd-selected attribute.
-             */
-            element.on('click', function (event) {
+                // Clean up
+                element.removeClass('dndDragging');
+                element.removeClass('dndDraggingSource');
+                dndDragTypeWorkaround.isDragging = false;
+
+                cache.remove(id);
+
+              });
+
+              event.stopPropagation();
+            },
+            onClick = function onClick(event) {
               event = event.originalEvent || event;
 
               scope.$apply(function () {
-                $parse(attr.dndSelected)(scope,
-                    {event: event, item: cache.get(id)});
+                $parse(attr.selected)(scope,
+                  {event: event, item: cache.get(id)});
               });
 
               event.stopPropagation();
-            });
-
-            /**
-             * Workaround to make element draggable in IE9
-             */
-            element.on('selectstart', function () {
+            },
+            onSelectstart = function onSelectStart() {
               if (this.dragDrop) {
                 this.dragDrop();
               }
               return false;
+            };
+
+          // Set the HTML5 draggable attribute on the element
+          element.attr('draggable', 'true');
+
+          // If the dnd-disable-if attribute is set, we have to watch that
+          if (attr.disableIf) {
+            scope.$watch(attr.disableIf, function (disabled) {
+              element.attr('draggable', !disabled);
             });
-          };
-        }])
+          }
+
+          /**
+           * When the drag operation is started we have to prepare the dataTransfer object,
+           * which is the primary way we communicate with the target element
+           */
+          element.on('dragstart', onDragStart);
+
+          /**
+           * The dragend event is triggered when the element was dropped or when the drag
+           * operation was aborted (e.g. hit escape button). Depending on the executed action
+           * we will invoke the callbacks specified with the dnd-moved or dnd-copied attribute.
+           */
+          element.on('dragend', onDragEnd);
+
+          /**
+           * When the element is clicked we invoke the callback function
+           * specified with the dnd-selected attribute.
+           */
+          element.on('click', onClick);
+
+          /**
+           * Workaround to make element draggable in IE9
+           */
+          element.on('selectstart', onSelectstart);
+        };
+      }])
 
   /**
    * Use the dnd-list attribute to make your list element a dropzone. Usually you will add a single
@@ -243,305 +250,314 @@
    *                        dndPlaceholder set.
    * - dndDragover          Will be added to the list while an element is dragged over the list.
    */
-      .directive('droppable',
-      ['$parse', '$timeout', 'dndDropEffectWorkaround', 'dndDragTypeWorkaround',
-        '$cacheFactory',
-        function ($parse, $timeout, dndDropEffectWorkaround,
-            dndDragTypeWorkaround, $cacheFactory) {
+    .directive('droppable',
+    ['$parse', '$timeout', 'dndDropEffectWorkaround', 'dndDragTypeWorkaround',
+      '$cacheFactory', '$compile',
+      function ($parse, $timeout, dndDropEffectWorkaround,
+        dndDragTypeWorkaround, $cacheFactory, $compile) {
 
-          var cache = $cacheFactory.get('dndLists') ||
-              $cacheFactory('dndLists');
+        var cache = $cacheFactory.get('droppables') ||
+          $cacheFactory('droppables');
 
-          return function (scope, element, attr) {
-            // While an element is dragged over the list, this placeholder element is inserted
-            // at the location where the element would be inserted after dropping
+        return function (scope, element, attr) {
+          // While an element is dragged over the list, this placeholder element is inserted
+          // at the location where the element would be inserted after dropping
 
-            /**
-             * Check if the dataTransfer object contains a drag type that we can handle. In old versions
-             * of IE the types collection will not even be there, so we just assume a drop is possible.
-             */
-            var hasTextMimetype = function hasTextMimetype(types) {
-              var i;
-              if (!types) {
-                return true;
-              }
-              for (i = 0; i < types.length; i++) {
-                if (types[i] === 'Text' ||
-                    types[i] === 'text/plain') {
-                  return true;
-                }
-              }
-
-              return false;
-            };
-
-            /**
-             * Invokes a callback with some interesting parameters and returns the callbacks return value.
-             */
-            var invokeCallback;
-            /**
-             * Small helper function that cleans up if we aborted a drop.
-             */
-            var stopDragover;
-            /**
-             * Checks various conditions that must be fulfilled for a drop to be allowed
-             */
-            var isDropAllowed;
-            /**
-             * We use the position of the placeholder node to determine at which position of the array the
-             * object needs to be inserted
-             */
-            var getPlaceholderIndex;
-            /**
-             * Checks whether the mouse pointer is in the first half of the given target element.
-             *
-             * In Chrome we can just use offsetY, but in Firefox we have to use layerY, which only
-             * works if the child element has position relative. In IE the events are only triggered
-             * on the listNode instead of the listNodeItem, therefore the mouse positions are
-             * relative to the parent element of targetNode.
-             */
-            var isMouseInFirstHalf;
-            var placeholder = angular.element('<li class="dndPlaceholder"></li>');
-            var placeholderNode = placeholder[0];
-            var listNode = element[0];
-
-            var horizontal = attr.dndHorizontalList &&
-                scope.$eval(attr.dndHorizontalList);
-            var externalSources = attr.dndExternalSources &&
-                scope.$eval(attr.dndExternalSources);
-
-            /**
-             * The dragover event is triggered 'every few hundred milliseconds' while an element
-             * is being dragged over our list, or over an child element.
-             */
-            element.on('dragover', function (event) {
-              var listItemNode;
-              event = event.originalEvent || event;
-
-              if (!isDropAllowed(event)) {
-                return true;
-              }
-
-              // First of all, make sure that the placeholder is shown
-              // This is especially important if the list is empty
-              if (placeholderNode.parentNode !== listNode) {
-                element.append(placeholder);
-              }
-
-              if (event.target !== listNode) {
-                // Try to find the node direct directly below the list node.
-                listItemNode = event.target;
-                while (listItemNode.parentNode !== listNode &&
-                listItemNode.parentNode) {
-                  listItemNode = listItemNode.parentNode;
-                }
-
-                if (listItemNode.parentNode === listNode &&
-                    listItemNode !== placeholderNode) {
-                  // If the mouse pointer is in the upper half of the child element,
-                  // we place it before the child element, otherwise below it.
-                  if (isMouseInFirstHalf(event, listItemNode)) {
-                    listNode.insertBefore(placeholderNode, listItemNode);
-                  } else {
-                    listNode.insertBefore(placeholderNode,
-                        listItemNode.nextSibling);
-                  }
-                }
-              } else {
-                // This branch is reached when we are dragging directly over the list element.
-                // Usually we wouldn't need to do anything here, but the IE does not fire it's
-                // events for the child element, only for the list directly. Therefore we repeat
-                // the positioning algorithm for IE here.
-                if (isMouseInFirstHalf(event, placeholderNode, true)) {
-                  // Check if we should move the placeholder element one spot towards the top.
-                  // Note that display none elements will have offsetTop and offsetHeight set to
-                  // zero, therefore we need a special check for them.
-                  while (placeholderNode.previousElementSibling
-                  && (isMouseInFirstHalf(event,
-                      placeholderNode.previousElementSibling, true)
-                  ||
-                  placeholderNode.previousElementSibling.offsetHeight === 0)) {
-                    listNode.insertBefore(placeholderNode,
-                        placeholderNode.previousElementSibling);
-                  }
-                } else {
-                  // Check if we should move the placeholder element one spot towards the bottom
-                  while (placeholderNode.nextElementSibling &&
-                  !isMouseInFirstHalf(event, placeholderNode.nextElementSibling,
-                      true)) {
-                    listNode.insertBefore(placeholderNode,
-                        placeholderNode.nextElementSibling.nextElementSibling);
-                  }
-                }
-              }
-
-              // At this point we invoke the callback, which still can disallow the drop.
-              // We can't do this earlier because we want to pass the index of the placeholder.
-              if (attr.dndDragover &&
-                  !invokeCallback(attr.dndDragover, event)) {
-                return stopDragover();
-              }
-
-              element.addClass('dndDragover');
-              event.preventDefault();
-              event.stopPropagation();
-              return false;
-            });
-
-            /**
-             * When the element is dropped, we use the position of the placeholder element as the
-             * position where we insert the transferred data. This assumes that the list has exactly
-             * one child element per array element.
-             */
-            element.on('drop', function (event) {
-              var targetArray;
-              var transferredObject;
-              var id;
-              var isCopy = !!event.ctrlKey;
-
-              event = event.originalEvent || event;
-
-              if (!isDropAllowed(event)) {
-                return true;
-              }
-
-              // The default behavior in Firefox is to interpret the dropped element as URL and
-              // forward to it. We want to prevent that even if our drop is aborted.
-              event.preventDefault();
-
-              // Unserialize the data that was serialized in dragstart. According to the HTML5 specs,
-              // the 'Text' drag type will be converted to text/plain, but IE does not do that.
-              id = event.dataTransfer.getData('Text') ||
-              event.dataTransfer.getData('text/plain');
-              // TODO: just pass the thing around; avoid cache
-              transferredObject = cache.get(id);
-
-              // Invoke the callback, which can transform the transferredObject and even abort the drop.
-              if (attr.dndDrop) {
-                transferredObject =
-                    invokeCallback(attr.dndDrop, event, transferredObject);
-                if (!transferredObject) {
-                  return stopDragover();
-                }
-              }
-
-              targetArray = scope.$eval(attr.dndList);
-              scope.$apply(function () {
-                if (isCopy) {
-                  targetArray.splice(getPlaceholderIndex(), 0,
-                      angular.isFunction(transferredObject.duplicate) ?
-                          transferredObject.duplicate() :
-                          angular.clone(transferredObject));
-                } else {
-                  targetArray.splice(getPlaceholderIndex(), 1,
-                      transferredObject);
-                }
-              });
-
-              // In Chrome on Windows the dropEffect will always be none...
-              // We have to determine the actual effect manually from the allowed effects
-              if (event.dataTransfer.dropEffect === 'none') {
-                if (event.dataTransfer.effectAllowed === 'copy' ||
-                    event.dataTransfer.effectAllowed === 'move') {
-                  dndDropEffectWorkaround.dropEffect =
-                      event.dataTransfer.effectAllowed;
-                } else {
-                  dndDropEffectWorkaround.dropEffect = isCopy ? 'copy' : 'move';
-                }
-              } else {
-                dndDropEffectWorkaround.dropEffect =
-                    event.dataTransfer.dropEffect;
-              }
-
-              // Clean up
-              stopDragover();
-              event.stopPropagation();
-              return false;
-            });
-
-            /**
-             * We have to remove the placeholder when the element is no longer dragged over our list. The
-             * problem is that the dragleave event is not only fired when the element leaves our list,
-             * but also when it leaves a child element -- so practically it's fired all the time. As a
-             * workaround we wait a few milliseconds and then check if the dndDragover class was added
-             * again. If it is there, dragover must have been called in the meantime, i.e. the element
-             * is still dragging over the list. If you know a better way of doing this, please tell me!
-             */
-            element.on('dragleave', function () {
-              element.removeClass('dndDragover');
-              $timeout(function () {
-                if (!element.hasClass('dndDragover')) {
-                  placeholder.remove();
-                }
-              }, 100);
-            });
-
-            isMouseInFirstHalf = function isMouseInFirstHalf(event, targetNode,
-                relativeToParent) {
-              var mousePointer = horizontal ? (event.offsetX || event.layerX)
-                  : (event.offsetY || event.layerY);
-              var targetSize = horizontal ? targetNode.offsetWidth :
-                  targetNode.offsetHeight;
-              var targetPosition = horizontal ? targetNode.offsetLeft :
-                  targetNode.offsetTop;
-              targetPosition = relativeToParent ? targetPosition : 0;
-              return mousePointer < targetPosition + targetSize / 2;
-            };
-
-            getPlaceholderIndex = function getPlaceholderIndex() {
-              return Array.prototype.indexOf.call(listNode.children,
-                  placeholderNode);
-            };
-
-            isDropAllowed = function isDropAllowed(event) {
-              // Disallow drop from external source unless it's allowed explicitly.
-              var allowed;
-              if (!dndDragTypeWorkaround.isDragging && !externalSources) {
-                return false;
-              }
-
-              // Check mimetype. Usually we would use a custom drag type instead of Text, but IE doesn't
-              // support that.
-              if (!hasTextMimetype(event.dataTransfer.types)) {
-                return false;
-              }
-
-              // Now check the dnd-allowed-types against the type of the incoming element. For drops from
-              // external sources we don't know the type, so it will need to be checked via dnd-drop.
-              if (attr.dndAllowedTypes && dndDragTypeWorkaround.isDragging) {
-                allowed = scope.$eval(attr.dndAllowedTypes);
-                if (angular.isArray(allowed) &&
-                    allowed.indexOf(dndDragTypeWorkaround.dragType) === -1) {
-                  return false;
-                }
-              }
-
-              // Check whether droping is disabled completely
-              return !(attr.dndDisableIf && scope.$eval(attr.dndDisableIf));
-            };
-
-            stopDragover = function stopDragover() {
-              placeholder.remove();
-              element.removeClass('dndDragover');
+          /**
+           * Check if the dataTransfer object contains a drag type that we can handle. In old versions
+           * of IE the types collection will not even be there, so we just assume a drop is possible.
+           */
+          var hasTextMimetype = function hasTextMimetype(types) {
+            var i;
+            if (!types) {
               return true;
-            };
+            }
+            for (i = 0; i < types.length; i++) {
+              if (types[i] === 'Text' ||
+                types[i] === 'text/plain') {
+                return true;
+              }
+            }
 
-            invokeCallback = function invokeCallback(expression, event, item) {
-              item = item || cache.get(event.dataTransfer.getData('Text') ||
-              event.dataTransfer.getData('text/plain'));
-              return $parse(expression)(scope, {
-                event: event,
-                index: getPlaceholderIndex(),
-                item: item,
-                external: !dndDragTypeWorkaround.isDragging,
-                type: dndDragTypeWorkaround.isDragging ?
-                    dndDragTypeWorkaround.dragType : undefined
-              });
-            };
-
+            return false;
           };
 
-        }])
+          /**
+           * Invokes a callback with some interesting parameters and returns the callbacks return value.
+           */
+          var invokeCallback;
+          /**
+           * Small helper function that cleans up if we aborted a drop.
+           */
+          var stopDragover;
+          /**
+           * Checks various conditions that must be fulfilled for a drop to be allowed
+           */
+          var isDropAllowed;
+          /**
+           * We use the position of the placeholder node to determine at which position of the array the
+           * object needs to be inserted
+           */
+          var getPlaceholderIndex;
+          /**
+           * Checks whether the mouse pointer is in the first half of the given target element.
+           *
+           * In Chrome we can just use offsetY, but in Firefox we have to use layerY, which only
+           * works if the child element has position relative. In IE the events are only triggered
+           * on the listNode instead of the listNodeItem, therefore the mouse positions are
+           * relative to the parent element of targetNode.
+           */
+          var isMouseInFirstHalf;
+          var placeholder = scope.$eval(attr.placeholder) || angular.element('<li class="dndPlaceholder"></li>');
+          var placeholderNode;
+          var listNode = element[0];
+
+          var horizontal = scope.$eval(attr.horizontalList);
+          var externalSources = scope.$eval(attr.externalSources);
+
+          var onDragover = function onDragover(event) {
+            var listItemNode;
+            event = event.originalEvent || event;
+
+            if (!isDropAllowed(event)) {
+              return true;
+            }
+
+            // First of all, make sure that the placeholder is shown
+            // This is especially important if the list is empty
+            if (!~Array.prototype.indexOf.apply(element.children(), placeholder)) {
+              scope.$apply(function() {
+                element.append(placeholder);
+                placeholder = $compile(placeholder)(scope);
+                placeholderNode = placeholder[0];
+              });
+            }
+
+            if (event.target !== listNode) {
+              // Try to find the node direct directly below the list node.
+              listItemNode = event.target;
+              while (listItemNode.parentNode !== listNode &&
+              listItemNode.parentNode) {
+                listItemNode = listItemNode.parentNode;
+              }
+
+              if (listItemNode.parentNode === listNode &&
+                listItemNode !== placeholderNode) {
+                // If the mouse pointer is in the upper half of the child element,
+                // we place it before the child element, otherwise below it.
+                if (isMouseInFirstHalf(event, listItemNode)) {
+                  listNode.insertBefore(placeholderNode, listItemNode);
+                } else {
+                  listNode.insertBefore(placeholderNode,
+                    listItemNode.nextSibling);
+                }
+              }
+            } else {
+              // This branch is reached when we are dragging directly over the list element.
+              // Usually we wouldn't need to do anything here, but the IE does not fire it's
+              // events for the child element, only for the list directly. Therefore we repeat
+              // the positioning algorithm for IE here.
+              if (isMouseInFirstHalf(event, placeholderNode, true)) {
+                // Check if we should move the placeholder element one spot towards the top.
+                // Note that display none elements will have offsetTop and offsetHeight set to
+                // zero, therefore we need a special check for them.
+                while (placeholderNode.previousElementSibling
+                && (isMouseInFirstHalf(event,
+                  placeholderNode.previousElementSibling, true)
+                ||
+                placeholderNode.previousElementSibling.offsetHeight === 0)) {
+                  listNode.insertBefore(placeholderNode,
+                    placeholderNode.previousElementSibling);
+                }
+              } else {
+                // Check if we should move the placeholder element one spot towards the bottom
+                while (placeholderNode.nextElementSibling &&
+                !isMouseInFirstHalf(event, placeholderNode.nextElementSibling,
+                  true)) {
+                  listNode.insertBefore(placeholderNode,
+                    placeholderNode.nextElementSibling.nextElementSibling);
+                }
+              }
+            }
+
+            // At this point we invoke the callback, which still can disallow the drop.
+            // We can't do this earlier because we want to pass the index of the placeholder.
+            if (attr.onDragover && !invokeCallback(attr.onDragover, event)) {
+              return stopDragover();
+            }
+
+            element.addClass('dndDragover');
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+          };
+
+          var onDrop = function onDrop(event) {
+            var list;
+            var item;
+            var isCopy = !!event.ctrlKey;
+
+            event = event.originalEvent || event;
+
+            if (!isDropAllowed(event)) {
+              return true;
+            }
+
+            // The default behavior in Firefox is to interpret the dropped element as URL and
+            // forward to it. We want to prevent that even if our drop is aborted.
+            event.preventDefault();
+
+            // Unserialize the data that was serialized in dragstart. According to the HTML5 specs,
+            // the 'Text' drag type will be converted to text/plain, but IE does not do that.
+            var id = event.dataTransfer.getData('Text') ||
+              event.dataTransfer.getData('text/plain');
+            // TODO: just pass the thing around; avoid cache
+            item = cache.get(id);
+
+            // Invoke the callback, which can transform the transferredObject and even abort the drop.
+            if (attr.onDrop && (item = invokeCallback(attr.onDrop, event, item))
+              && !item) {
+              return stopDragover();
+            }
+
+            list = scope.$eval(attr.droppable);
+            scope.$apply(function () {
+              var removeIdx,
+                placeholderIdx = getPlaceholderIndex();
+              if (isCopy) {
+                list.splice(placeholderIdx, 0, item);
+              } else {
+                removeIdx = list.indexOf(item);
+                if (placeholderIdx >= removeIdx) {
+                  list.splice(placeholderIdx, 0, item);
+                  list.splice(removeIdx, 1);
+                }
+                else {
+                  list.splice(placeholderIdx, 0, item);
+                  list.splice(list.lastIndexOf(item), 1);
+                }
+              }
+            });
+
+            // In Chrome on Windows the dropEffect will always be none...
+            // We have to determine the actual effect manually from the allowed effects
+            if (event.dataTransfer.dropEffect === 'none') {
+              if (event.dataTransfer.effectAllowed === 'copy' ||
+                event.dataTransfer.effectAllowed === 'move') {
+                dndDropEffectWorkaround.dropEffect =
+                  event.dataTransfer.effectAllowed;
+              } else {
+                dndDropEffectWorkaround.dropEffect = isCopy ? 'copy' : 'move';
+              }
+            } else {
+              dndDropEffectWorkaround.dropEffect =
+                event.dataTransfer.dropEffect;
+            }
+
+            // Clean up
+            stopDragover();
+            event.stopPropagation();
+            return false;
+          };
+
+          var onDragleave = function onDragleave() {
+            element.removeClass('dndDragover');
+            $timeout(function () {
+              if (!element.hasClass('dndDragover')) {
+                placeholder.remove();
+              }
+            }, 100);
+          };
+
+          /**
+           * The dragover event is triggered 'every few hundred milliseconds' while an element
+           * is being dragged over our list, or over an child element.
+           */
+          element.on('dragover', onDragover);
+
+          /**
+           * When the element is dropped, we use the position of the placeholder element as the
+           * position where we insert the transferred data. This assumes that the list has exactly
+           * one child element per array element.
+           */
+          element.on('drop', onDrop);
+
+          /**
+           * We have to remove the placeholder when the element is no longer dragged over our list. The
+           * problem is that the dragleave event is not only fired when the element leaves our list,
+           * but also when it leaves a child element -- so practically it's fired all the time. As a
+           * workaround we wait a few milliseconds and then check if the dndDragover class was added
+           * again. If it is there, dragover must have been called in the meantime, i.e. the element
+           * is still dragging over the list. If you know a better way of doing this, please tell me!
+           */
+          element.on('dragleave', onDragleave);
+
+          isMouseInFirstHalf = function isMouseInFirstHalf(event, targetNode,
+            relativeToParent) {
+            var mousePointer = horizontal ? (event.offsetX || event.layerX)
+              : (event.offsetY || event.layerY);
+            var targetSize = horizontal ? targetNode.offsetWidth :
+              targetNode.offsetHeight;
+            var targetPosition = horizontal ? targetNode.offsetLeft :
+              targetNode.offsetTop;
+            targetPosition = relativeToParent ? targetPosition : 0;
+            return mousePointer < targetPosition + targetSize / 2;
+          };
+
+          getPlaceholderIndex = function getPlaceholderIndex() {
+            return Array.prototype.indexOf.call(listNode.children,
+              placeholderNode);
+          };
+
+          isDropAllowed = function isDropAllowed(event) {
+            // Disallow drop from external source unless it's allowed explicitly.
+            var allowed;
+            if (!dndDragTypeWorkaround.isDragging && !externalSources) {
+              return false;
+            }
+
+            // Check mimetype. Usually we would use a custom drag type instead of Text, but IE doesn't
+            // support that.
+            if (!hasTextMimetype(event.dataTransfer.types)) {
+              return false;
+            }
+
+            // Now check the dnd-allowed-types against the type of the incoming element. For drops from
+            // external sources we don't know the type, so it will need to be checked via dnd-drop.
+            if (attr.allowedTypes && dndDragTypeWorkaround.isDragging) {
+              allowed = scope.$eval(attr.allowedTypes);
+              if (angular.isArray(allowed) &&
+                allowed.indexOf(dndDragTypeWorkaround.dragType) === -1) {
+                return false;
+              }
+            }
+
+            // Check whether droping is disabled completely
+            return !(attr.disableIf && scope.$eval(attr.disableIf));
+          };
+
+          stopDragover = function stopDragover() {
+            placeholder.remove();
+            element.removeClass('dndDragover');
+            return true;
+          };
+
+          invokeCallback = function invokeCallback(expression, event, item, data) {
+            item = item || cache.get(event.dataTransfer.getData('Text') ||
+            event.dataTransfer.getData('text/plain'));
+            return $parse(expression)(scope, angular.extend({
+              event: event,
+              index: getPlaceholderIndex(),
+              item: item,
+              external: !dndDragTypeWorkaround.isDragging,
+              type: dndDragTypeWorkaround.isDragging ?
+                dndDragTypeWorkaround.dragType : undefined
+            }, data));
+          };
+
+        };
+
+      }])
 
   /**
    * This workaround handles the fact that Internet Explorer does not support drag types other than
@@ -550,7 +566,7 @@
    * here. When a dropover event occurs, we only allow the drop if we are already dragging, because
    * that means the element is ours.
    */
-      .value('dndDragTypeWorkaround', {})
+    .value('dndDragTypeWorkaround', {})
 
   /**
    * Chrome on Windows does not set the dropEffect field, which we need in dragend to determine
@@ -558,6 +574,6 @@
    * variable. The bug report for that has been open for years:
    * https://code.google.com/p/chromium/issues/detail?id=39399
    */
-      .value('dndDropEffectWorkaround', {});
+    .value('dndDropEffectWorkaround', {});
 
 }(window.angular));
