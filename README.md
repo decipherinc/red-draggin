@@ -11,7 +11,7 @@ Differences:
 
 - Moving & copying are no longer destructive operations
   - Moving does not destroy object references or prototype chains
-  - Copying actually depply clones the dragged object
+  - Copying actually deeply clones the dragged object
 - Doesn't really support dragging stuff from the desktop
 - New dependency: [angular-types](https://github.com/decipherinc/angular-types) for cloning support
 
