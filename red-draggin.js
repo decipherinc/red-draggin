@@ -393,6 +393,7 @@
           };
 
           var onDrop = function onDrop(event) {
+            var id;
             var list;
             var item;
             var isCopy = !!event.ctrlKey;
@@ -409,8 +410,8 @@
 
             // Unserialize the data that was serialized in dragstart. According to the HTML5 specs,
             // the 'Text' drag type will be converted to text/plain, but IE does not do that.
-            var id = event.dataTransfer.getData('Text') ||
-              event.dataTransfer.getData('text/plain');
+            id = event.dataTransfer.getData('Text') ||
+            event.dataTransfer.getData('text/plain');
             // TODO: just pass the thing around; avoid cache
             item = cache.get(id);
 
