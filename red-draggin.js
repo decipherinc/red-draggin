@@ -278,8 +278,7 @@
    * - dndDragover          Will be added to the list while an element is dragged over the list.
    */
     .directive('droppable',
-    ['$parse', '$timeout', 'rdDropEffect', 'rdTransport',
-      '$compile',
+    ['$parse', '$timeout', 'rdDropEffect', 'rdTransport', '$compile',
       function ($parse, $timeout, rdDropEffect,
         rdTransport, $compile) {
 
@@ -405,7 +404,8 @@
 
               // At this point we invoke the callback, which still can disallow the drop.
               // We can't do this earlier because we want to pass the index of the placeholder.
-              if (attr.onDragover && !invokeCallback(attr.onDragover, event)) {
+              if (attr.onDragover &&
+                !invokeCallback(attr.onDragover, event, rdTransport.item)) {
                 return stopDragover();
               }
 
@@ -489,7 +489,11 @@
               return false;
             },
 
-            onDragleave = function onDragleave() {
+            onDragleave = function onDragleave(event) {
+              if (attr.onDragleave) {
+                // TODO any way to abort a dragleave?
+                invokeCallback(attr.onDragleave, event, rdTransport.item);
+              }
               element.removeClass('dndDragover');
               $timeout(function () {
                 if (!element.hasClass('dndDragover')) {
