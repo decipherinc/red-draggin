@@ -65,8 +65,7 @@
    */
     .directive('draggable',
     ['$parse', '$timeout', 'rdDropEffect', 'rdTransport',
-      function ($parse, $timeout, rdDropEffect,
-        rdTransport) {
+      function ($parse, $timeout, rdDropEffect, rdTransport) {
 
         var nextBufferId;
 
@@ -134,7 +133,7 @@
               rdTransport.dragType = scope.$eval(attr.type);
 
               // Invoke callback
-              $parse(attr.onDragStart)(scope,
+              $parse(attr.onDragstart)(scope,
                 {event: event, item: rdTransport.item});
 
               event.stopPropagation();
@@ -171,6 +170,10 @@
                 delete rdTransport.item;
                 delete rdTransport.container;
               });
+
+              // Invoke callback
+              $parse(attr.onDragend)(scope,
+                {event: event, item: rdTransport.item});
 
               event.stopPropagation();
             },
@@ -332,6 +335,7 @@
             angular.element('<li class="dndPlaceholder"></li>');
           var placeholderNode;
           var listNode = element[0];
+          var leaving;
 
           var horizontal = scope.$eval(attr.horizontalList);
           var externalSources = scope.$eval(attr.externalSources);
@@ -344,15 +348,20 @@
                 return true;
               }
 
+              if (leaving) {
+                clearTimeout(leaving);
+                //leaving = null;
+              }
+
               // First of all, make sure that the placeholder is shown
               // This is especially important if the list is empty
               if (!~Array.prototype.indexOf.apply(element.children(),
                   placeholder)) {
-                scope.$apply(function () {
                   element.append(placeholder);
-                  placeholder = $compile(placeholder)(scope);
+                scope.$apply(function () {
                   placeholderNode = placeholder[0];
                 });
+                placeholder = $compile(placeholder)(scope);
               }
 
               if (event.target !== listNode) {
@@ -406,10 +415,11 @@
               // We can't do this earlier because we want to pass the index of the placeholder.
               if (attr.onDragover &&
                 !invokeCallback(attr.onDragover, event, rdTransport.item)) {
-                return stopDragover();
+                stopDragover(0);
+                return true;
               }
 
-              element.addClass('dndDragover');
+              element.addClass('dragover');
               event.preventDefault();
               event.stopPropagation();
               return false;
@@ -443,9 +453,9 @@
 
               // Invoke the callback, which can transform the transferredObject and even abort the drop.
               if (attr.onDrop &&
-                (item = invokeCallback(attr.onDrop, event, item))
-                && !item) {
-                return stopDragover();
+                (item = invokeCallback(attr.onDrop, event, item)) && !item) {
+                stopDragover(0);
+                return true;
               }
 
               dest = scope.$eval(attr.droppable);
@@ -460,7 +470,6 @@
                     source !== dest) {
                     insert(dest, placeholderIdx, item);
                     source.splice(removeIdx, 1);
-
                   } else {
                     insert(dest, placeholderIdx, item);
                     source.splice(source.lastIndexOf(item), 1);
@@ -479,27 +488,20 @@
                   rdDropEffect.dropEffect = isCopy ? 'copy' : 'move';
                 }
               } else {
-                rdDropEffect.dropEffect =
-                  event.dataTransfer.dropEffect;
+                rdDropEffect.dropEffect = event.dataTransfer.dropEffect;
               }
 
               // Clean up
-              stopDragover();
+              stopDragover(0);
               event.stopPropagation();
               return false;
             },
 
             onDragleave = function onDragleave(event) {
-              if (attr.onDragleave) {
-                // TODO any way to abort a dragleave?
-                invokeCallback(attr.onDragleave, event, rdTransport.item);
-              }
-              element.removeClass('dndDragover');
-              $timeout(function () {
-                if (!element.hasClass('dndDragover')) {
-                  placeholder.remove();
-                }
-              }, 100);
+              stopDragover(0);
+              event.preventDefault();
+              event.stopPropagation();
+              return false;
             };
 
           /**
@@ -569,10 +571,20 @@
             return !(attr.disableIf && scope.$eval(attr.disableIf));
           };
 
-          stopDragover = function stopDragover() {
-            placeholder.remove();
-            element.removeClass('dndDragover');
-            return true;
+          stopDragover = function stopDragover(ms, callback) {
+            if (!leaving || !ms) {
+              if (leaving) {
+                clearTimeout(leaving);
+              }
+              leaving = setTimeout(function () {
+                placeholder.remove();
+                if (angular.isFunction(callback)) {
+                  callback();
+                }
+                leaving = null;
+                element.removeClass('dragover');
+              }, ms);
+            }
           };
 
           invokeCallback =
