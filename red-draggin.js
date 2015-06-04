@@ -1,5 +1,5 @@
 /**
- * red-draggin v2.0.0
+ * red-draggin v2.0.0-5
  *
  * Copyright (c) 2014 Marcel Juenemann mail@marcel-junemann.de
  * https://github.com/decipherinc/red-draggin
@@ -451,9 +451,11 @@
               item = rdTransport.item;
               source = rdTransport.container;
 
-              // Invoke the callback, which can transform the transferredObject and even abort the drop.
-              if (attr.onDrop &&
-                (item = invokeCallback(attr.onDrop, event, item)) && !item) {
+              // Invoke the callback, which can transform the transferredObject
+              item = invokeCallback(attr.onDrop, event, item);
+
+              // abort the drop if the transferred item tells us to.
+              if (attr.onDrop && !item) {
                 stopDragover(0);
                 return true;
               }
