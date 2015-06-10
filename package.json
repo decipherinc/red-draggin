@@ -1,6 +1,6 @@
 {
   "name": "red-draggin",
-  "version": "2.0.0-5",
+  "version": "2.0.0-6",
   "description": "Angular directives for sorting nested lists",
   "repository": "https://github.com/decipherinc/red-draggin.git",
   "license": "MIT",
