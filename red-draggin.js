@@ -451,11 +451,14 @@
               item = rdTransport.item;
               source = rdTransport.container;
 
-              // Invoke the callback, which can transform the transferredObject
-              item = invokeCallback(attr.onDrop, event, item);
+              // Invoke the callback if it exists, which can transform the transferredObject
+              item = attr.onDrop ?
+                invokeCallback(attr.onDrop, event, rdTransport.item) :
+                rdTransport.item;
+              source = rdTransport.container;
 
               // abort the drop if the transferred item tells us to.
-              if (attr.onDrop && !item) {
+              if (!item) {
                 stopDragover(0);
                 return true;
               }
